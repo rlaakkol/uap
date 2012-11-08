@@ -141,15 +141,10 @@ sig_char(int pid, char code)
 {
 	char	c;
 	int	i;
-	struct timespec	sleeptime;
-	sleeptime.tv_sec = WAIT;
-	sleeptime.tv_nsec = 0;
 	i = 0;
 	while((c = code[i]) != '\0') {
 		if (i > 0) {
-			if (nanosleep(&sleeptime, NULL) != -1) {
-				exit(ERROR);
-			}
+			sig_sleep();
 		}
 		if (c == '.') kill(pid, MORSE_SHORT);
 		else if (c == '-') kill(pid, MORSE_LONG);
