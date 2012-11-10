@@ -88,6 +88,7 @@ main(int argc, char** argv)
 		perror("fopen error");
 		exit(-1);
 	}
+	outfile = NULL;
 
 	sig_flag = INIT_FLAG;
 
