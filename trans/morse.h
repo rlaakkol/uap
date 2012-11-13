@@ -12,11 +12,18 @@
 #define MORSE_MAP {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', ' ', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.', '?', '-', ':', ';', '/', '_', '\n', EOF, '#'}
 
 
+extern int     sig_flag; 
+extern int     parent_hold; 
+extern int     child_hold;
+
+
 int morse_encode(char *buf, char c);
 
 char morse_decode(char *code);
 
-int sig_char(int pid, char *code);
+int sig_char(int pid, char c);
+
+char get_char(int pid);
 
 char sig_to_morse(int sig);
 

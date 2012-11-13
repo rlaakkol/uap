@@ -2,32 +2,33 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
+#include <errno.h>
+#include <string.h>
 #include "morse.h"
 
 int	sig_flag;
 
 void
-handler(int signo)
+child_handler(int signo)
 {
-	int	pid;
+	printf("child received signal %s\n", strsignal(signo));
+}
 
-	pid = getpid();
-
-	if (pid == 0) {
-		/* In child, continue */
-	} else {
-		if (signo == MORSE_SHORT) sig_flag = MORSE_SHORT;
-		else if (signo == MORSE_LONG) sig_flag = MORSE_LONG;
-		else if (signo == MORSE_PAUSE) sig_flag = MORSE_PAUSE;
-		else sig_flag = MORSE_ERR;
-	}
+void
+parent_handler(int signo)
+{
+	printf("parent received signal %s\n", strsignal(signo));
+	if (signo == MORSE_SHORT) sig_flag = MORSE_SHORT;
+	else if (signo == MORSE_LONG) sig_flag = MORSE_LONG;
+	else if (signo == MORSE_PAUSE) sig_flag = MORSE_PAUSE;
+	else sig_flag = MORSE_ERR;
 }
 
 int
 child_func(char *filename, FILE* infile)
 {
 	int 	ppid;
-	char 	c, code[8];
+	char 	c;
 
 	if ((infile = fopen(filename, "r")) == NULL) {
 		perror("error opening input file");
@@ -35,11 +36,12 @@ child_func(char *filename, FILE* infile)
 	}
 
 	ppid = getppid();
-	while ((c = getc(infile)) != EOF) {
-		morse_encode(code, c);
-		sig_char(ppid, code);
+	do {
+		c = getc(infile);
+		sig_char(ppid, c);
 
-	}
+	} while (c != EOF);
+
 
 	return 0;
 }
@@ -48,24 +50,11 @@ int
 parent_func(FILE *outfile, int cpid)
 {
 	char	nextc;
-	char	code[8];
-	int	i;
 
 	while (nextc != EOF) {
-		if (sig_flag == INIT_FLAG) {
-			sig_sleep();
-		}
-		code[0] = sig_to_morse(sig_flag);
-		i = 1;
-		while (sig_flag != MORSE_PAUSE) {
-			kill(cpid, sig_flag);
-			sig_sleep();
-			code[i] = sig_to_morse(sig_flag);
-			i++;
-		}
-		nextc = morse_decode(code);
+		nextc = get_char(cpid);
+		
 		fputc(nextc, outfile);
-		sig_flag = INIT_FLAG;
 		kill(cpid, MORSE_PAUSE);
 	}
 
@@ -91,8 +80,9 @@ main(int argc, char** argv)
 	outfile = NULL;
 
 	sig_flag = INIT_FLAG;
+	parent_hold = 1;
+	child_hold = 1;
 
-	sa.sa_handler = &handler;
 
 	sigemptyset(&ss);
 	sigaddset(&ss, MORSE_SHORT);
@@ -101,9 +91,6 @@ main(int argc, char** argv)
 
 	sa.sa_mask = ss;
 
-	sigaction(MORSE_SHORT, &sa, NULL);
-	sigaction(MORSE_LONG, &sa, NULL);
-	sigaction(MORSE_PAUSE, &sa, NULL);
 
 	if ((pid = fork()) < 0){
 		perror("fork error");
@@ -111,10 +98,19 @@ main(int argc, char** argv)
 	}
 	if (pid == 0) {
 		/* In child */
+
+		sa.sa_handler = &child_handler;
+		sigaction(MORSE_SHORT, &sa, NULL);
+		sigaction(MORSE_LONG, &sa, NULL);
+		sigaction(MORSE_PAUSE, &sa, NULL);
 		child_func(infilename,infile);
 	}
 	else {
 		/* In parent */
+		sa.sa_handler = &parent_handler;
+		sigaction(MORSE_SHORT, &sa, NULL);
+		sigaction(MORSE_LONG, &sa, NULL);
+		sigaction(MORSE_PAUSE, &sa, NULL);
 		parent_func(outfile, pid);
 	}
 	fclose(infile);
