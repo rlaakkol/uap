@@ -14,21 +14,25 @@ const char codes[MORSE_NCHARS][MORSE_LEN] = MORSE_CODES;
 const char char_map[MORSE_NCHARS] = MORSE_MAP;
 
 volatile int     sig_flag; 
+volatile int 	ready_flag;
 FILE 	*logfile;
 
 
 int
 sig_sleep(time_t sec, long nsec)
 {
+	sigset_t 	sigs;
 	struct timespec	sleeptime;
+
+	sigemptyset(&sigs);
+	sigaddset(&sigs, MORSE_SHORT);
+	sigaddset(&sigs, MORSE_LONG);
+	sigaddset(&sigs, MORSE_PAUSE);
 
 	sleeptime.tv_sec = sec;
 	sleeptime.tv_nsec = nsec;
 
-	if (nanosleep(&sleeptime, NULL) != -1) {
-		return -1;
-	}
-	return 0;
+	return sigtimedwait(&sigs, NULL, &sleeptime);
 }
 
 
@@ -57,10 +61,9 @@ morse_decode(char *code)
 
 	
 	i = 0;
-	while (i < 47 && !strcmp(code, codes[i])) {
+	while (i < 47 && strcmp(code, codes[i])) {
 		i++;
 	}
-	fprintf(logfile, "i = %d, char = %c\n", i, char_map[i]);
 
 	
 	return char_map[i];
@@ -86,14 +89,10 @@ sig_char(int pid, char c)
 	
 
 	morse_encode(code, c);
-	fprintf(logfile, "sending char %c code %s\n", c, code);
 	i = 0;
 	do {
 		next = code[i];
-		if(sig_sleep(10, 0) == -1){
-			fprintf(logfile, "child timed out\n");
-			exit(-1);
-		}
+		sig_sleep(100, 0);
 		if (next == '.') kill(pid, MORSE_SHORT);
 		else if (next == '-') kill(pid, MORSE_LONG);
 		else if (next == '\0') kill(pid, MORSE_PAUSE);
@@ -106,22 +105,17 @@ sig_char(int pid, char c)
 char
 get_char(int pid)
 {
-	int 	i;
-	char 	code[8];
-
+	int 	i, signo;
+	char 	code[8], c;
+	
+	signo = MORSE_PAUSE;
 	i = 0;
 	do {
-		if (i == 0) sig_sleep(1, 0);
-		kill(pid, sig_flag);
-		if(sig_sleep(10, 0) == -1) {
-			fprintf(logfile, "parent timed out\n");
-			exit(-1);
-		}
-		fprintf(logfile, "sig_flag is now %s\n", strsignal(sig_flag));
-		code[i] = sig_to_morse(sig_flag);
+		kill(pid, signo);
+		signo = sig_sleep(1, 0);
+		code[i] = sig_to_morse(signo);
 		i++;
-	} while (sig_flag != MORSE_PAUSE); 
-	fprintf(logfile, "code to decode: %s, decoded: %c\n", code, morse_decode(code));
-	fprintf(logfile, "foobar\n");
-	return morse_decode(code);
+	} while (signo != MORSE_PAUSE); 
+	c = morse_decode(code);
+	return c;
 }

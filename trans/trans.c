@@ -7,19 +7,19 @@
 #include "morse.h"
 
 volatile int	sig_flag;
+volatile int 	ready_flag;
 FILE 	*logfile;
 
-
+/*
 void
 handler(int signo)
 {
-	printf("received signal %s\n", strsignal(signo));
 	if (signo == MORSE_SHORT) sig_flag = MORSE_SHORT;
 	else if (signo == MORSE_LONG) sig_flag = MORSE_LONG;
 	else if (signo == MORSE_PAUSE) sig_flag = MORSE_PAUSE;
 	else sig_flag = MORSE_ERR;
 }
-
+*/
 int
 child_func(char *filename, FILE* infile)
 {
@@ -38,21 +38,30 @@ child_func(char *filename, FILE* infile)
 
 	} while (c != EOF);
 
-
+	fprintf(logfile, "quitting child\n");
+	fclose(infile);
 	return 0;
 }
 
 int
-parent_func(FILE *outfile, int cpid)
+parent_func(char *outfilename, FILE *outfile, int cpid)
 {
+
+
 	char	nextc;
 
+	if ((outfile = fopen(outfilename, "w")) == NULL) {
+		perror("fopen error");
+		exit(-1);
+	}
+	sig_sleep(1, 0);
 	while (nextc != EOF) {
 		nextc = get_char(cpid);
-		fprintf(logfile, "char to put: %c", nextc);
-		fputc(nextc, outfile);
+		if (nextc != EOF) fputc(nextc, outfile);
 	}
 
+	fprintf(logfile, "quitting parent\n");
+	fclose(outfile);
 	return 0;
 }
 
@@ -62,22 +71,15 @@ main(int argc, char** argv)
 	int 			pid;
 	char 			*infilename, *outfilename;
 	FILE 			*infile, *outfile;
-	struct sigaction 	sa;
+/*	struct sigaction 	sa; */
 	sigset_t 		ss;
-
-
+		
 
 	infilename = argv[1];
 	outfilename = argv[2];
 	if (argc > 3) logfile = fopen(argv[3], "w");
 	else logfile = stdout;
 	
-
-	if ((infile = fopen(outfilename, "w")) == NULL) {
-		perror("fopen error");
-		exit(-1);
-	}
-	outfile = NULL;
 
 	sig_flag = MORSE_PAUSE;
 
@@ -86,13 +88,15 @@ main(int argc, char** argv)
 	sigaddset(&ss, MORSE_SHORT);
 	sigaddset(&ss, MORSE_LONG);
 	sigaddset(&ss, MORSE_PAUSE);
-
+/**
 	sa.sa_mask = ss;
 
 	sa.sa_handler = &handler;
 	sigaction(MORSE_SHORT, &sa, NULL);
 	sigaction(MORSE_LONG, &sa, NULL);
 	sigaction(MORSE_PAUSE, &sa, NULL);
+**/	
+	sigprocmask(SIG_BLOCK, &ss, NULL);
 
 	if ((pid = fork()) < 0){
 		perror("fork error");
@@ -100,15 +104,12 @@ main(int argc, char** argv)
 	}
 	if (pid == 0) {
 		/* In child */
-		fprintf(logfile, "starting child functionality\n");
 		child_func(infilename,infile);
 	}
 	else {
 		/* In parent */
-		parent_func(outfile, pid);
+		parent_func(outfilename, outfile, pid);
 	}
-	fclose(infile);
-	fclose(outfile);
 	fclose(logfile);
 	return 0;
 }
