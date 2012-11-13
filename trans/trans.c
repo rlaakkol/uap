@@ -6,18 +6,14 @@
 #include <string.h>
 #include "morse.h"
 
-int	sig_flag;
+volatile int	sig_flag;
+FILE 	*logfile;
+
 
 void
-child_handler(int signo)
+handler(int signo)
 {
-	printf("child received signal %s\n", strsignal(signo));
-}
-
-void
-parent_handler(int signo)
-{
-	printf("parent received signal %s\n", strsignal(signo));
+	printf("received signal %s\n", strsignal(signo));
 	if (signo == MORSE_SHORT) sig_flag = MORSE_SHORT;
 	else if (signo == MORSE_LONG) sig_flag = MORSE_LONG;
 	else if (signo == MORSE_PAUSE) sig_flag = MORSE_PAUSE;
@@ -53,9 +49,8 @@ parent_func(FILE *outfile, int cpid)
 
 	while (nextc != EOF) {
 		nextc = get_char(cpid);
-		
+		fprintf(logfile, "char to put: %c", nextc);
 		fputc(nextc, outfile);
-		kill(cpid, MORSE_PAUSE);
 	}
 
 	return 0;
@@ -70,8 +65,13 @@ main(int argc, char** argv)
 	struct sigaction 	sa;
 	sigset_t 		ss;
 
+
+
 	infilename = argv[1];
 	outfilename = argv[2];
+	if (argc > 3) logfile = fopen(argv[3], "w");
+	else logfile = stdout;
+	
 
 	if ((infile = fopen(outfilename, "w")) == NULL) {
 		perror("fopen error");
@@ -79,9 +79,7 @@ main(int argc, char** argv)
 	}
 	outfile = NULL;
 
-	sig_flag = INIT_FLAG;
-	parent_hold = 1;
-	child_hold = 1;
+	sig_flag = MORSE_PAUSE;
 
 
 	sigemptyset(&ss);
@@ -91,6 +89,10 @@ main(int argc, char** argv)
 
 	sa.sa_mask = ss;
 
+	sa.sa_handler = &handler;
+	sigaction(MORSE_SHORT, &sa, NULL);
+	sigaction(MORSE_LONG, &sa, NULL);
+	sigaction(MORSE_PAUSE, &sa, NULL);
 
 	if ((pid = fork()) < 0){
 		perror("fork error");
@@ -98,23 +100,16 @@ main(int argc, char** argv)
 	}
 	if (pid == 0) {
 		/* In child */
-
-		sa.sa_handler = &child_handler;
-		sigaction(MORSE_SHORT, &sa, NULL);
-		sigaction(MORSE_LONG, &sa, NULL);
-		sigaction(MORSE_PAUSE, &sa, NULL);
+		fprintf(logfile, "starting child functionality\n");
 		child_func(infilename,infile);
 	}
 	else {
 		/* In parent */
-		sa.sa_handler = &parent_handler;
-		sigaction(MORSE_SHORT, &sa, NULL);
-		sigaction(MORSE_LONG, &sa, NULL);
-		sigaction(MORSE_PAUSE, &sa, NULL);
 		parent_func(outfile, pid);
 	}
 	fclose(infile);
 	fclose(outfile);
+	fclose(logfile);
 	return 0;
 }
 

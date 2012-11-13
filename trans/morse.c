@@ -13,22 +13,19 @@
 const char codes[MORSE_NCHARS][MORSE_LEN] = MORSE_CODES;
 const char char_map[MORSE_NCHARS] = MORSE_MAP;
 
-int     sig_flag; 
-int     parent_hold; 
-int     child_hold; 
+volatile int     sig_flag; 
+FILE 	*logfile;
 
 
 int
-sig_sleep(void)
+sig_sleep(time_t sec, long nsec)
 {
 	struct timespec	sleeptime;
-	sigset_t 	ss;
 
-	sleeptime.tv_sec = WAIT;
-	sleeptime.tv_nsec = 0;
+	sleeptime.tv_sec = sec;
+	sleeptime.tv_nsec = nsec;
 
-
-	if (nanosleep(&sleeptime, NULL) == 0) {
+	if (nanosleep(&sleeptime, NULL) != -1) {
 		return -1;
 	}
 	return 0;
@@ -63,7 +60,9 @@ morse_decode(char *code)
 	while (i < 47 && !strcmp(code, codes[i])) {
 		i++;
 	}
+	fprintf(logfile, "i = %d, char = %c\n", i, char_map[i]);
 
+	
 	return char_map[i];
 }
 
@@ -82,20 +81,25 @@ sig_to_morse(int sig)
 int
 sig_char(int pid, char c)
 {
-	char	code[8];
+	char	code[8], next;
 	int	i;
 	
 
 	morse_encode(code, c);
+	fprintf(logfile, "sending char %c code %s\n", c, code);
 	i = 0;
-	while((c = code[i]) != '\0') {
-		while(!sig_sleep()){
-			if (c == '.') kill(pid, MORSE_SHORT);
-			else if (c == '-') kill(pid, MORSE_LONG);
-			else kill(pid, MORSE_ERR);
+	do {
+		next = code[i];
+		if(sig_sleep(10, 0) == -1){
+			fprintf(logfile, "child timed out\n");
+			exit(-1);
 		}
+		if (next == '.') kill(pid, MORSE_SHORT);
+		else if (next == '-') kill(pid, MORSE_LONG);
+		else if (next == '\0') kill(pid, MORSE_PAUSE);
+		else kill(pid, MORSE_ERR);
 		i++;
-	}
+	} while(next != '\0');
 	return 0;
 }
 
@@ -106,14 +110,18 @@ get_char(int pid)
 	char 	code[8];
 
 	i = 0;
-	while (sig_flag != MORSE_PAUSE) {
-		kill(pid, MORSE_SHORT);
-		while(!sig_sleep()) {
-			kill(pid, MORSE_SHORT);
+	do {
+		if (i == 0) sig_sleep(1, 0);
+		kill(pid, sig_flag);
+		if(sig_sleep(10, 0) == -1) {
+			fprintf(logfile, "parent timed out\n");
+			exit(-1);
 		}
-		printf("sig_flag is now %s\n", strsignal(sig_flag));
+		fprintf(logfile, "sig_flag is now %s\n", strsignal(sig_flag));
 		code[i] = sig_to_morse(sig_flag);
 		i++;
-	}
+	} while (sig_flag != MORSE_PAUSE); 
+	fprintf(logfile, "code to decode: %s, decoded: %c\n", code, morse_decode(code));
+	fprintf(logfile, "foobar\n");
 	return morse_decode(code);
 }
