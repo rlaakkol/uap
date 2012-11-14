@@ -6,98 +6,118 @@
 #include <string.h>
 #include "morse.h"
 
-volatile int	sig_flag;
-volatile int 	ready_flag;
 FILE 	*logfile;
 
-/*
+/* Usage message to stdout */
 void
-handler(int signo)
+print_usage(void)
 {
-	if (signo == MORSE_SHORT) sig_flag = MORSE_SHORT;
-	else if (signo == MORSE_LONG) sig_flag = MORSE_LONG;
-	else if (signo == MORSE_PAUSE) sig_flag = MORSE_PAUSE;
-	else sig_flag = MORSE_ERR;
+	printf("Usage: ./trans <input file> <output file> [<logfile>]\n");
 }
-*/
+
+/** Operations performed by child process:
+ * open input file and morse signal it character
+ * by character to parent process.
+ * */
 int
 child_func(char *filename, FILE* infile)
 {
 	int 	ppid;
 	char 	c;
 
+	/* Open input file */
 	if ((infile = fopen(filename, "r")) == NULL) {
 		perror("error opening input file");
+		print_usage();
 		exit(-1);
 	}
 
 	ppid = getppid();
+	/* Loop until EOF occurs */
 	do {
+		/* Read char from file */
 		c = getc(infile);
+		/* signal to parent */
 		sig_char(ppid, c);
 
 	} while (c != EOF);
 
-	fprintf(logfile, "quitting child\n");
+	fprintf(logfile, "%ld: quitting child\n", (long int)time(NULL));
 	fclose(infile);
 	return 0;
 }
 
+/** Operations performed by parent process:
+ * open output file and listen to character signals
+ * from child processa and output them to the file
+ */
 int
 parent_func(char *outfilename, FILE *outfile, int cpid)
 {
-
-
 	char	nextc;
 
+	/* Open output file */
 	if ((outfile = fopen(outfilename, "w")) == NULL) {
-		perror("fopen error");
+		perror("error opening output file");
+		print_usage();
 		exit(-1);
 	}
-	sig_sleep(1, 0);
+	/* Loop until EOF occurs */
 	while (nextc != EOF) {
 		nextc = get_char(cpid);
+		/* Write to file (unless EOF) */
 		if (nextc != EOF) fputc(nextc, outfile);
+		/* FLush after each character */
+		fflush(outfile);
 	}
 
-	fprintf(logfile, "quitting parent\n");
+	fprintf(logfile, "%ld: quitting parent\n", (long int)time(NULL));
 	fclose(outfile);
 	return 0;
 }
 
+/** The main function reads command line arguments, opens
+ * the log and forks the child process.
+ */
 int
 main(int argc, char** argv)
 {
 	int 			pid;
 	char 			*infilename, *outfilename;
 	FILE 			*infile, *outfile;
-/*	struct sigaction 	sa; */
 	sigset_t 		ss;
-		
+
+	infile = NULL;
+	outfile = NULL;
+	
+	if (argc < 3 || argc > 4) {
+		print_usage();
+		exit(-1);
+	}
 
 	infilename = argv[1];
 	outfilename = argv[2];
-	if (argc > 3) logfile = fopen(argv[3], "w");
-	else logfile = stdout;
-	
+	if (argc > 3) { 
+		if ((logfile = fopen(argv[3], "w")) == NULL) {
+			perror("unable to open logfile");
+			print_usage();
+			exit(-1);
+		}
+	} else logfile = stdout;
+	fprintf(logfile, "%ld: log opened\n", (long int)time(NULL));
 
-	sig_flag = MORSE_PAUSE;
-
-
+	/** Create a blocking sigprocmask for the morse code signals so 
+	 * that the blocked signals can be caught with sigtimedwait 
+	 * instead of the signal handler
+	 * */
 	sigemptyset(&ss);
 	sigaddset(&ss, MORSE_SHORT);
 	sigaddset(&ss, MORSE_LONG);
 	sigaddset(&ss, MORSE_PAUSE);
-/**
-	sa.sa_mask = ss;
-
-	sa.sa_handler = &handler;
-	sigaction(MORSE_SHORT, &sa, NULL);
-	sigaction(MORSE_LONG, &sa, NULL);
-	sigaction(MORSE_PAUSE, &sa, NULL);
-**/	
+	
 	sigprocmask(SIG_BLOCK, &ss, NULL);
-
+	
+	/* Fork the child process */
 	if ((pid = fork()) < 0){
 		perror("fork error");
 		exit(-1);
@@ -109,8 +129,8 @@ main(int argc, char** argv)
 	else {
 		/* In parent */
 		parent_func(outfilename, outfile, pid);
+		fclose(logfile);
 	}
-	fclose(logfile);
 	return 0;
 }
 

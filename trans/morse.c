@@ -13,10 +13,7 @@
 const char codes[MORSE_NCHARS][MORSE_LEN] = MORSE_CODES;
 const char char_map[MORSE_NCHARS] = MORSE_MAP;
 
-volatile int     sig_flag; 
-volatile int 	ready_flag;
 FILE 	*logfile;
-
 
 int
 sig_sleep(time_t sec, long nsec)
@@ -24,11 +21,13 @@ sig_sleep(time_t sec, long nsec)
 	sigset_t 	sigs;
 	struct timespec	sleeptime;
 
+	/* Setup signals to wait for */
 	sigemptyset(&sigs);
 	sigaddset(&sigs, MORSE_SHORT);
 	sigaddset(&sigs, MORSE_LONG);
 	sigaddset(&sigs, MORSE_PAUSE);
 
+	/* Define timeout */
 	sleeptime.tv_sec = sec;
 	sleeptime.tv_nsec = nsec;
 
@@ -41,15 +40,16 @@ morse_encode(char *buf, char c)
 {
 	char 	cc;
 	int 	i;
-
-
+	
+	/* Convert to lowercase */
 	cc = tolower(c);
+	/* Stupid-search for char in char_map */
 	i = 0;
 	while (i < 46 && char_map[i] != cc) {
 		i++;
 	}
 	
-
+	/* Copy code representing c to buf */
 	strcpy(buf, codes[i]);
 	return 1;
 }
@@ -59,13 +59,13 @@ morse_decode(char *code)
 {
 	int i;
 
-	
+	/* Stupid-search for matching code in codes */
 	i = 0;
 	while (i < 47 && strcmp(code, codes[i])) {
 		i++;
 	}
 
-	
+	/* Return corresponding char */
 	return char_map[i];
 }
 
@@ -90,9 +90,17 @@ sig_char(int pid, char c)
 
 	morse_encode(code, c);
 	i = 0;
+	/* Loop throughout the morse-coded char */
 	do {
 		next = code[i];
-		sig_sleep(100, 0);
+		/* Wait for "parent ready" signal */
+		if (sig_sleep(10, 0) == -1) {
+			/* Had to wait too long, timeout */
+			fprintf(logfile, "%ld: child timed out (no signal received from parent)\n", (long int)time(NULL));
+			fflush(logfile);
+			exit(-1);
+		}
+		/* Parent ready, send correct signal */
 		if (next == '.') kill(pid, MORSE_SHORT);
 		else if (next == '-') kill(pid, MORSE_LONG);
 		else if (next == '\0') kill(pid, MORSE_PAUSE);
@@ -110,12 +118,22 @@ get_char(int pid)
 	
 	signo = MORSE_PAUSE;
 	i = 0;
+	/* Loop until \0 is received */
 	do {
+		/* Signal "parent ready" to child with previous signal */
 		kill(pid, signo);
-		signo = sig_sleep(1, 0);
+		/* Wait for signal (if necessary) */
+		if ((signo = sig_sleep(10, 0)) == -1) {
+			/* timeout */
+			fprintf(logfile, "%ld: parent timed out (no signal received from child)\n", (long int)time(NULL));
+			fflush(logfile);
+			exit(-1);
+		}
+		/* Convert signal to (-, . or \0) */
 		code[i] = sig_to_morse(signo);
 		i++;
 	} while (signo != MORSE_PAUSE); 
+	/* Decode to char */
 	c = morse_decode(code);
 	return c;
 }
