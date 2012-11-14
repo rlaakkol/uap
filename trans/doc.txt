@@ -20,6 +20,9 @@ the destination filename or "stdout" and <logfile> is the filename for the log
 file. <logfile> may be omitted, which results to log messages being printed into
 stdout.
 
+DISCLAIMER: The dictionary of the program is very limited, and it will convert
+all letters to lowercase during transfer.
+
 2. General description
 
 When the program is started, it opens the log file. Then signal processing is
@@ -33,14 +36,15 @@ character by character and uses the morse-api to transmit the character to the
 parent process. Here is a step by step description of the api concerning the
 child:
 
-- Encode the character to morse (e.g. "--.--.") by using the dictionary
+- Encode the (lowercased) character to morse (e.g. "--.--.") by using the
+dictionary
 - Signal each of these shorts and longs to the parent like this:
 	* Call sigtimedwait() to wait for the "parent ready" signal (this will
 	  return immediately if signal has already been received and blocked)
 		* Timeout occurs after too much waiting (default 10 seconds) and
 		  child is terminated
 	* Send the signal corresponding to the current morse short or long
-	* Repeat until end of morse code (current encoded character)
+* Repeat until end of morse code (current encoded character)
 - Read next character
 - Repeat until EOF is reached.
 - Close input file.
