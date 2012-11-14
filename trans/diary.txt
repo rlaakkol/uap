@@ -1,0 +1,22 @@
+*****
+* Learning diary
+*****
+author: Riku Lääkkölä, 69896S
+
+This is my second attempt at this course, and I picked the same assignment for
+the first phase. Last time I never got to a phase where I would have been able
+to catch any signals, but now I was more successful.
+
+As the main subject of the task is signaling, I will first contemplate the
+"smart" usage of signals. Tasks such as this one, file transfer, does not fall
+into this category. An average POSIX programmer is most likely happiest, if he
+only needs to care about cleaning up (or other correct behaviour) after SIGCHLD
+and SIGINT.
+
+Most current applications that have to deal with asynchronous events (such as
+signals) tend to use the libevent API, and for IPC, socket based APIs are a bit
+more convenient than handling signals manually. However, it is always nice to
+know the basis of things so that it is possible to know the limitations and
+drawbacks of these higher level solutions.
+
+

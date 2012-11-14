@@ -1,0 +1,62 @@
+*****
+* Documentation for signal-morse file transfer program "trans"
+*****
+author: Riku Lääkkölä, 69896S
+
+1. Usage instructions
+
+1.1. Compiling
+
+Compile program by running make.
+
+1.2. Running program
+
+Run program with the command:
+
+/.trans <infile> <outfile> [<logfile>]
+
+where <infile> is the filename of the input file to be transferred, <outfile> is
+the destination filename or "stdout" and <logfile> is the filename for the log
+file. <logfile> may be omitted, which results to log messages being printed into
+stdout.
+
+2. General description
+
+When the program is started, it opens the log file. Then signal processing is
+formatted: Signals used for morse-signaling (SIGUSR1, SIGUSR2 and SIGINT) are
+blocked with sigprocmask(). Then a child process is forked.
+
+2.1. Child process
+
+First, the child process opens the input file. After this, it simply reads it
+character by character and uses the morse-api to transmit the character to the
+parent process. Here is a step by step description of the api concerning the
+child:
+
+- Encode the character to morse (e.g. "--.--.") by using the dictionary
+- Signal each of these shorts and longs to the parent like this:
+	* Call sigtimedwait() to wait for the "parent ready" signal (this will
+	  return immediately if signal has already been received and blocked)
+		* Timeout occurs after too much waiting (default 10 seconds) and
+		  child is terminated
+	* Send the signal corresponding to the current morse short or long
+	* Repeat until end of morse code (current encoded character)
+- Read next character
+- Repeat until EOF is reached.
+- Close input file.
+
+2.2. Parent process
+
+The parent process functions much like the child, except that it opens the file
+for output and reads the signals from the child in the following manner:
+
+- Start the receiving loop for the next character:
+	* Send "parent ready" signal to child
+	* Call sigtimedwait() to wait for morse signal (should not have arrived
+	  in advance because the child should wait for the signal first)
+ 		* Timeout occurs like in child
+	* Copy morse value of signal
+	* Repeat until end of current code is reached ('\0 or SIGINT')
+- Output character
+- Repeat until EOF is received
+- Close output file.
