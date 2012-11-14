@@ -66,6 +66,7 @@ parent_func(char *outfilename, FILE *outfile, int cpid)
 		exit(-1);
 	}
 	/* Loop until EOF occurs */
+	nextc = 1;
 	while (nextc != EOF) {
 		nextc = get_char(cpid);
 		/* Write to file (unless EOF) */

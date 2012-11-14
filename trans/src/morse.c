@@ -43,7 +43,7 @@ morse_encode(char *buf, char c)
 	cc = tolower(c);
 	/* Stupid-search for matching char in dictionary */
 	i = 0;
-	while (i < 46 && char_map[i] != cc) {
+	while (i < MORSE_NCHARS - 1 && char_map[i] != cc) {
 		i++;
 	}
 	
@@ -59,7 +59,7 @@ morse_decode(char *code)
 
 	/* Stupid-search for matching code in dictionary */
 	i = 0;
-	while (i < 47 && strcmp(code, codes[i])) {
+	while (i < MORSE_NCHARS && strcmp(code, codes[i])) {
 		i++;
 	}
 
@@ -82,7 +82,7 @@ sig_to_morse(int sig)
 int
 sig_char(int pid, char c)
 {
-	char	code[8], next;
+	char	code[MORSE_LEN], next;
 	int	i;
 	
 
@@ -111,7 +111,7 @@ char
 get_char(int pid)
 {
 	int 	i, signo;
-	char 	code[8], c;
+	char 	code[MORSE_LEN], c;
 	
 	signo = MORSE_PAUSE;
 	i = 0;

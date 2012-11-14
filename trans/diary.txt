@@ -10,8 +10,8 @@ to catch any signals, but now I was more successful.
 As the main subject of the task is signaling, I will first contemplate the
 "smart" usage of signals. Tasks such as this one, file transfer, does not fall
 into this category. An average POSIX programmer is most likely happiest, if he
-only needs to care about cleaning up (or other correct behaviour) after SIGCHLD,
-SIGINT, SIGTERM, SIGKILL or SIGHUP.
+only needs to care about cleaning up (or other correct behaviour, e.g.
+reloading config files) after SIGCHLD, SIGINT, SIGTERM, SIGKILL or SIGHUP.
 
 Most current applications that have to deal with asynchronous events (such as
 signals) tend to use the libevent API, and for IPC, socket based APIs are a bit
@@ -19,4 +19,48 @@ more convenient than handling signals manually. However, it is always nice to
 know the basis of things so that it is possible to know the limitations and
 drawbacks of these higher level solutions.
 
+My first design idea for this particular task was the intuitive approach:
+Create a signal handler that alters a global volatile flag variable according
+to received signals (long, short, "pause"). The parent then reads this
+variable over and over and decodes the message. For synchronisation, the child
+would wait for the parent to send a signal before it had permission to send
+the actual message signal.
 
+This seemed simple enough, but the synchronisation part was trickier than
+expected: small files worked nicely with carefully chosen timeouts, but larger
+files failed at some point. The performance got better with a global volatile
+"ready flag" variable, which was supposed to state that the parent had sent
+the ready signal already before the child was going to sleep to wait for it,
+but the program was still unstable.
+
+Finally (with some excellent assistance) I went for a different approach,
+where signal handlers are dropped out and the morse signals are actually
+blocked with sigprocmask(), which enables them to be fetched (and waited for)
+with sigtimedwait(). This approach was actually presented to me quite early on
+in IRC, but I decided to go with the "intuitive" one instead first. This was
+obviously a mistake performance wise, but at least I got to learn how pesky
+those asynchronous signals actually are.
+
+The program works quite stably now, and it has been tested (in addition to
+large valid files) with broken files and by sending SIGTERM to the other
+process, and no orphan or other lingerin processes should be left behind.
+Altough the other (depending on whether the child or the parent is terminated
+prematurely) will exit only after the timeout occurs, and not via some smart
+mechanism using SIGCHLD or such. Sending SIGINT from the outside to the parent
+produces errors in output, but the process still finishes. Sending enough
+shorts and longs might cause segmentation faults, as the signals are stored in
+a static array. These might be points to improve on. No memory leaks happen
+according to valgrind. This is probably because no dynamic memory allocation
+is happening.
+
+Also, the dictionary of characters is quite limited (only lower case, only a
+few special characters), which means that most documents get a lot of
+#-characters, which I used for "error" (........). This is of course easy to
+improve, but as the dictionary grows, my "stupid" search "algorithm" used in
+encoding and decoding would quite fast create performance problems. This would
+have to be improved with some sort of actual morse-encoding/decoding API, that
+utilises the Huffman characteristics of the Morse code, at least when
+converting from code to char (hundreds of strcmp-calls for one character is
+probably bad). The log-event writing might also need some improvements, as
+both the child and parent are writing to the log and this creates some
+inconsistency sometimes.
