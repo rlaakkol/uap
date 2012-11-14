@@ -1,6 +1,8 @@
+#ifndef _MORSE_H
+#define _MORSE_H
+
 #include <stdio.h>
 #include <time.h>
-
 
 #define WAIT 10	/* Timeout value in seconds */
 
@@ -8,7 +10,6 @@
 #define MORSE_SHORT SIGUSR1
 #define MORSE_LONG SIGUSR2
 #define MORSE_PAUSE SIGINT
-#define MORSE_ERR 'E'
 
 /* Morse-letter -mappings */
 #define MORSE_NCHARS 47
@@ -48,3 +49,5 @@ char sig_to_morse(int sig);
  * signal arrives or timeout (sec seconds and nsec nanoseconds)
  * occurs */
 int sig_sleep(time_t sec, long nsec);
+
+#endif

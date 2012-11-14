@@ -1,10 +1,8 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <signal.h>
-#include <errno.h>
-#include <string.h>
 #include "morse.h"
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
 
 FILE 	*logfile;
 
@@ -13,6 +11,7 @@ void
 print_usage(void)
 {
 	printf("Usage: ./trans <input file> <output file> [<logfile>]\n");
+	printf("(Use \"stdout\" for output file name for stdout)\n");
 }
 
 /** Operations performed by child process:
@@ -57,7 +56,8 @@ parent_func(char *outfilename, FILE *outfile, int cpid)
 	char	nextc;
 
 	/* Open output file */
-	if ((outfile = fopen(outfilename, "w")) == NULL) {
+	if (strcmp(outfilename, "stdout") == 0) outfile = stdout;
+	else if ((outfile = fopen(outfilename, "w")) == NULL) {
 		perror("error opening output file");
 		print_usage();
 		exit(-1);
@@ -71,8 +71,8 @@ parent_func(char *outfilename, FILE *outfile, int cpid)
 		fflush(outfile);
 	}
 
-	fprintf(logfile, "%ld: quitting parent\n", (long int)time(NULL));
 	fclose(outfile);
+	fprintf(logfile, "%ld: quitting parent\n", (long int)time(NULL));
 	return 0;
 }
 
@@ -125,10 +125,13 @@ main(int argc, char** argv)
 	if (pid == 0) {
 		/* In child */
 		child_func(infilename,infile);
+		fflush(logfile);
+		fclose(logfile);
 	}
 	else {
 		/* In parent */
 		parent_func(outfilename, outfile, pid);
+		fflush(logfile);
 		fclose(logfile);
 	}
 	return 0;

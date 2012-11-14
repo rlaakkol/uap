@@ -1,13 +1,8 @@
 #include "morse.h"
-#include <unistd.h>
 #include <signal.h>
-#include <time.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <ctype.h>
-#include <error.h>
-#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 
 
 const char codes[MORSE_NCHARS][MORSE_LEN] = MORSE_CODES;
@@ -94,7 +89,7 @@ sig_char(int pid, char c)
 	do {
 		next = code[i];
 		/* Wait for "parent ready" signal */
-		if (sig_sleep(10, 0) == -1) {
+		if (sig_sleep(WAIT, 0) == -1) {
 			/* Had to wait too long, timeout */
 			fprintf(logfile, "%ld: child timed out (no signal received from parent)\n", (long int)time(NULL));
 			fflush(logfile);
@@ -103,10 +98,9 @@ sig_char(int pid, char c)
 		/* Parent ready, send correct signal */
 		if (next == '.') kill(pid, MORSE_SHORT);
 		else if (next == '-') kill(pid, MORSE_LONG);
-		else if (next == '\0') kill(pid, MORSE_PAUSE);
-		else kill(pid, MORSE_ERR);
+		else kill(pid, MORSE_PAUSE);
 		i++;
-	} while(next != '\0');
+	} while (next == '-' || next == '.');
 	return 0;
 }
 
@@ -123,7 +117,7 @@ get_char(int pid)
 		/* Signal "parent ready" to child with previous signal */
 		kill(pid, signo);
 		/* Wait for signal (if necessary) */
-		if ((signo = sig_sleep(10, 0)) == -1) {
+		if ((signo = sig_sleep(WAIT, 0)) == -1) {
 			/* timeout */
 			fprintf(logfile, "%ld: parent timed out (no signal received from child)\n", (long int)time(NULL));
 			fflush(logfile);
