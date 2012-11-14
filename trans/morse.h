@@ -1,8 +1,5 @@
-#ifndef _MORSE_H
-#define _MORSE_H
-
-#include <stdio.h>
-#include <time.h>
+#ifndef _MORSE_H_
+#define _MORSE_H_
 
 #define WAIT 10	/* Timeout value in seconds */
 
@@ -11,7 +8,7 @@
 #define MORSE_LONG SIGUSR2
 #define MORSE_PAUSE SIGINT
 
-/* Morse-letter -mappings */
+/* Morse-letter -mappings, "dictionary" */
 #define MORSE_NCHARS 47
 #define MORSE_LEN 8
 #define MORSE_CODES {".-", "-...", "-.-.", "-..", ".", "..-.", "--.", "....", "..", ".---", "-.-", ".-..", "--", "-.", "---", ".--.", "--.-", ".-.", "...", "-", "..-", "...-", ".--", "-..-", "-.--", "--..", "----", ".----", "..---", "...--", "....-", ".....", "-....", "--...", "---..", "----.", "-----", ".-.-.-", "..--..", "-....-", "---...", "-.-.-.", "-..-.", "..--.-", "......", ".......", "........"}

@@ -1,10 +1,13 @@
-#include "morse.h"
 #include <signal.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <time.h>
 
+#include "morse.h"
 
+/* Generate dictionary */
 const char codes[MORSE_NCHARS][MORSE_LEN] = MORSE_CODES;
 const char char_map[MORSE_NCHARS] = MORSE_MAP;
 
@@ -38,7 +41,7 @@ morse_encode(char *buf, char c)
 	
 	/* Convert to lowercase */
 	cc = tolower(c);
-	/* Stupid-search for char in char_map */
+	/* Stupid-search for matching char in dictionary */
 	i = 0;
 	while (i < 46 && char_map[i] != cc) {
 		i++;
@@ -54,7 +57,7 @@ morse_decode(char *code)
 {
 	int i;
 
-	/* Stupid-search for matching code in codes */
+	/* Stupid-search for matching code in dictionary */
 	i = 0;
 	while (i < 47 && strcmp(code, codes[i])) {
 		i++;
