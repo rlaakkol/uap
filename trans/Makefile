@@ -1,10 +1,21 @@
-CC=gcc 
+CC = gcc 
 
-CFLAGS=-Wall -Wextra -pedantic
+CFLAGS = -Wall -Wextra -pedantic
 
-all: trans clean
+SOURCES = src/trans.c src/morse.c
 
-trans: trans.o morse.o
+LIBS = src/morse.h
+
+OBJS = $(SOURCES:.c=.o)
+
+EXE = trans
+
+all: $(EXE) clean
+
+$(EXE): $(OBJS)
+	$(CC) $(OBJS) -o $@
+
+$(OBJS): $(LIBS)
 
 clean:
-		rm -f trans.o morse.o
+	rm -f $(OBJS)
