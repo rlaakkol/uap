@@ -1,5 +1,5 @@
 int mylog_open(char *tag);
 
-int mylog_log(char *message);
+int mylog_write(char *msg);
 
-int mylog_close();
+int mylog_close(void);
