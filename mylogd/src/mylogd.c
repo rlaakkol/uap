@@ -3,23 +3,50 @@
 #define FIFOFMT "tmp/mylog.%d"
 #define FIFOPERMS (S_IRWXU | S_IWGRP| S_IWOTH)
 #define MAXLEN 256
+#define TIMEOUT 5
 
 FILE 	*logfile;
+pthread_mutex_t 	mutex;
 
 int
 output_msg(int readlen, char *buf, char *rem)
 {
-	int 	i;
 
-	i = 0;
+	int len;
+	struct timespec timeout;
 
-	while (i < readlen && buf[i] != '\0')
+	timeout.tv_sec = TIMEOUT;
+	timeout.tv_nsec = 0;
+
+	len = strlen(buf);
+
+	if (pthread_mutex_timedlock(mutex, &timeout) != 0 && errno == ETIMEDOUT) {
+
+	fprintf(logfile, "%s", buf);
+	fprintf(logfile, "\n");
+	pthread_mutex_unlock(mutex);
+	return 0;
+
 
 }
+
+int
+get_msg(int fd, char *buf, char delim)
+{
+	int i, out;
+
+	i = -1;
+	while ((out = read(fd, buf + ++i, 1)) && buf[i] != delim);
+
+	return out ? 0 : -1;
+}
+	
+
+
 void
 logger(void *caller_pid)
 {
-	int 	pid, logfd, out;
+	int 	pid, logfd, out, readout;
 	char 	*fifo, *buf, *rem;
 	fd_set 	readfds;
 
@@ -36,8 +63,8 @@ logger(void *caller_pid)
 	for (;;) {
 		FD_SET(logfd, readfds);
 		select(logfd + 1, &readfds, NULL, NULL, NULL);
-		readlen = read(logfd, buf, BUFLEN);
-		while ((out = output_msg(readlen, buf, rem)) > 0) {
+		readout = get_msg(logfd, buf, '\0');
+		while ((out = output_msg(buf)) > 0) {
 			readlen -= out;
 		}
 		if (out == -1) break;
@@ -52,7 +79,7 @@ logger(void *caller_pid)
 }
 
 int
-start_logs(const char *buf)
+start_log(const char *buf)
 {
 	int 	pid;
 	pthread_t 	tid;
@@ -66,7 +93,7 @@ int
 main(int argc, char *argv[])
 {
 	fd_set 	readfds;
-	int 	mainfd;
+	int 	mainfd, readout;
 	char 	buf[BUFLEN];
 
 	if ((logfile = fopen(argv[1], "w")) == NULL) {
@@ -84,8 +111,8 @@ main(int argc, char *argv[])
 	for (;;) {
 		FD_SET(mainfd, readfds);
 		select(mainfd + 1, &readfds, NULL, NULL, NULL);
-		readlen = read(mainfd, buf, BUFLEN);
-		start_logs(buf);
+		readout = read(mainfd, buf, '\0');
+		if (readout == 0) start_log(buf);
 
 	}
 }		
