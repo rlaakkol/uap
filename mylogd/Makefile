@@ -1,5 +1,5 @@
 CC = gcc 
-CFLAGS = -Wall -Wextra -pedantic
+CFLAGS = -std=gnu99 -Wall -Wextra -pedantic -g
 DSOURCES = src/mylogd.c src/mylogd_logger.c
 TSOURCES = tester.c
 LSOURCES = src/mylog.c

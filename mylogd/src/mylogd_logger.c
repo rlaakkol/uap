@@ -11,8 +11,12 @@
 
 #include "mylogd.h"
 
+// Mutex for synchronizing writing to logfile
 pthread_mutex_t 	mutex = PTHREAD_MUTEX_INITIALIZER;
 
+/*
+ * Write message to logfile
+ * */
 int
 output_msg(char *buf)
 {
@@ -22,10 +26,10 @@ output_msg(char *buf)
 	timeout.tv_sec = TIMEOUT;
 	timeout.tv_nsec = 0;
 
-
+	// Acquire mutex to gain write access to logfile
 	if (pthread_mutex_timedlock(&mutex, &timeout) != 0 && errno == ETIMEDOUT) {
 		perror("Failed to acquire lock for writing (timeout occurred).");
-		pthread_exit(NULL);
+		return(-1);
 	}
 
 	fprintf(logfile, "%s\n", buf);
@@ -36,23 +40,47 @@ output_msg(char *buf)
 
 }
 
+/*
+ * Read message from fd
+ * */
 int
 get_msg(int fd, char *buf, char delim)
 {
 	int i, out;
 
 	i = 0;
-	while ((out = read(fd, buf + i, 1)) && buf[i] != delim) {
-		printf("%c", buf[i]);
+	// Read message one byte at a time from fd.
+	while (i < MAXLEN && (out = read(fd, buf + i, 1)) > 0 && buf[i] != delim) {
 		i++;
 	}
-	printf("\n");
-
-	return out != -1 && buf[i] == delim ? 0 : -1;
+	if (i < MAXLEN) buf[i] = '\0';
+	else buf[MAXLEN - 1] = '\0';
+	// Return success if read was successful and ended in delim.
+	return i < MAXLEN && out != -1 && buf[i] == delim ? 0 : -1;
 }
 	
+/*
+ * Generate name for fifo according to pid.
+ * */
+char
+*fifoname(int pid)
+{
+	char 	*name;
+
+	name = malloc(30*sizeof(char));
+	// Even this didn't make valgrind happy...
+	for (int i = 0; i < 30; i++) {
+		name[i] = '\0';
+	}
+	snprintf(name, 28, FIFOFMT, pid);
 
 
+	return name;
+}
+
+/*
+ * The main logging functionality of a thread
+ * */
 void
 *logger(void *caller_pid)
 {
@@ -60,45 +88,61 @@ void
 	char 	*fifo, *buf;
 	fd_set 	readfds;
 
-	fifo = malloc(30);
-	buf = malloc(MAXLEN);
 	
+	// Open process-specific fifo
 	pid_ptr = (int *) caller_pid;
 	pid = *pid_ptr;
-	snprintf(fifo, MAXLEN, FIFOFMT, pid);
-	if (mkfifo(fifo, FIFOPERMS) != 0) {
+	fifo = fifoname(pid);
 
-	}
+	mkfifo(fifo, FIFOPERMS);
+	// Open fifo for reading (and writing for select to work).
 	logfd = open(fifo, O_RDWR);
-	printf("opened fifo %s\n", fifo);
+	free(fifo);
 	for (;;) {
 		FD_ZERO(&readfds);
 		FD_SET(logfd, &readfds);
+		// Wait for incoming bytes
 		select(logfd + 1, &readfds, NULL, NULL, NULL);
+		// Allocate message buffer
+		buf = malloc(MAXLEN);
+		// Read message from fd
 		if(get_msg(logfd, buf, '\0') != 0) {
-			perror("Invalid log input");
+			output_msg("Invalid log input");
+			free(buf);
 			continue;
 		}
-		if (strcmp(buf, "C") == 0) break;
+		// If message is "close" command, stop logging
+		if (strcmp(buf, CLOSE_MSG) == 0) {
+			free(buf);
+			break;
+		}
+		// Write to logfile
 		output_msg(buf);
+		free(buf);
 
 
 	}
+
+	// cleanup
 	
 	close(logfd);
+	fifo = fifoname(pid);
 	unlink(fifo);
 
 	free(fifo);
-	free(buf);
 	pthread_exit(NULL);
 }
 
+/*
+ * Create logger thread
+ * */
 int
 start_log(int pid)
 {
 	pthread_t 	tid;
-
+	// Create thread, pass caller process pid as argument.
 	pthread_create(&tid, NULL, logger, (void *) &pid);
-	printf("created thread for pid %d\n", pid);
+	// Detach thread immediately to free resources after it's done
+	pthread_detach(tid);
 	return 0;
 }

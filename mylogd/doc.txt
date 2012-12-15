@@ -1,0 +1,99 @@
+*****
+* Documentation for syslog-daemon and api implementation mylogd
+*****
+author: Riku Lääkkölä, 69896S
+
+1. Usage instructions
+
+1.1. Compiling
+
+Compile the program by running make.
+
+1.2. Running program
+
+Start the daemon with the command
+
+daemon/mylogd <logfile_abspath>
+
+where <logfile_abspath> is the ABSOLUTE path to the logfile to be written.
+
+DISCLAIMER: Do not open multiple daemons! This results in unspecified
+behaviour.
+
+1.2. Using the API
+
+The logging library functions can be viewed in the header file src/mylog.h.
+They are used according to the comments in the header file (and section 3 of
+this document). To be able to use the functions, the header file must be
+included in the code, and the library file lib/mylog.a must be provided to the
+linker. The daemon must of course be running for the functionality to be
+available.
+
+2. General description of the daemon
+
+When the program is started, it first turns itself into a daemon by forking
+twice etc. Then the daemonized process opens the log file and the main fifo
+and starts waiting for incoming logger "connections".
+
+2.1. New connections
+
+The "main loop" of the daemon process works in the following way:
+
+* Wait for incoming bytes on the main fifo (/tmp/mylog.main) using select().
+* When the fifo becomes readable, read the data (format should be caller
+  process id as a null-terminated string).
+* Invoke a thread to handle logging for the caller process, pass pid as
+  argument
+* Detach thread to free resources when it is finished
+* Go back to waiting for new connections
+
+2.2. Logger thread functionality
+
+A "logger thread" (each process using the API has its own thread handle
+logging) works in the following way:
+
+* Create process-specific fifo (/tmp/mylog.<pid>) Wait for incoming bytes on
+  this fifo just like in the main process loop Read the data one byte at a
+* time into a buffer (the data is already
+  formatted by the api)
+* If the data is the command to close the log, clean up and exit thread
+* Otherwise output data to logfile and go back to waiting for new data
+	- A mutex has to be locked by the thread before it may write into the
+	  logfile, so that the threads don't try to write simultaneously, and
+	  the mutex is unlocked after flushing the file
+
+Although the fifo here is "process-specific", a child process may just as well
+write into the log of its parent. It just needs to know the name of the fifo
+(which is derived from the pid of the process that opened the log).
+
+3. General description of the API
+
+The mylog-API is very minimalistic. It offers three functions, which are
+mylog_open(const char *tag), mylog_write(const char *msg) and
+mylog_close(void).
+
+Logging is enabled by calling the mylog_open-function. The tag-argument is the
+string that wil appear in each log message of this process.
+
+Messages are written to the log with the mylog_write-function and the log is
+closed with the mylog_close-function. The log has to be closed by the caller
+program so that the daemon may free the resources and delete the mutex.
+
+The mylog_open function works like this:
+
+* Open a writing connection to the logger daemon's main fifo
+* Write a message containing the process id of the caller to the fifo
+* Try to open a writing connection to the process-specific fifo, repeat until
+  connection is succesful
+* send "started logging" -message to logger daemon.
+
+The mylog_write function works like this:
+
+* Get current time and format the timestamp string
+* Combine timestamp with user-provided message
+* Write message into daemon's fifo (message size is limited, too long messages
+  are trunkated)
+
+The mylog_close function works like this:
+* Send "close message" to the fifo
+* Close connection to the fifo

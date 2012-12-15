@@ -6,13 +6,15 @@
 int
 main(int argc, char *argv[])
 {
-	mylog_open("tester");
-	sleep(atoi(argv[1]));
-	printf("logging msg1\n");
-	mylog_write("test 1 of log");
+	char 	logname[12];
+
+	if (argc != 4) return -1;
+	sprintf(logname, "tester%d", atoi(argv[1]));
+	mylog_open(logname);
 	sleep(atoi(argv[2]));
-	printf("logging msg2\n");
-	mylog_write("test 2 of log");
+	mylog_write("log test 1");
+	sleep(atoi(argv[3]));
+	mylog_write("Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! Too long! ");
 	mylog_close();
 	return 0;
 }

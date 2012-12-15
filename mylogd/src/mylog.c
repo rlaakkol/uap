@@ -8,35 +8,36 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <pthread.h>
 
 #include "mylog.h"
 
-#define FIFOFMT "/tmp/mylog.%d"
-#define FIFO_WRITE "/tmp/mylog.main"
-#define MAXLEN 256
 int daemonfd_w;
 int logfd;
 char caller[30];
 int pid;
+pthread_mutex_t         mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
+/*
+ * Open log and log starting message
+ * */
 int
 mylog_open(const char *tag)
 {
-	char 	omsg[30], path[30];
+	char 	omsg[20], path[30];
 	size_t 	len;
 
-	strcpy(caller, tag);
+	strncpy(caller, tag, 29);
+	caller[30] = '\0';
 	pid = getpid();
-	/* Open pipes */
-	daemonfd_w = open(FIFO_WRITE, O_WRONLY);
+	/* Open the "log request" pipe for writing */
+	daemonfd_w = open(FIFOPATH, O_WRONLY);
 
-	/* Write to mylogd main process pipe */
+	/* Write to open request to mylogd main process pipe */
 	sprintf(omsg, "%d", pid);
 	len = strlen(omsg);
-	printf("Sending open message: %s\n", omsg);
 	len = write(daemonfd_w, omsg, len + 1);
-	printf("Wrote %d bytes\n", (int) len);
 
 	
 	/* Open pid-specific pipe (once it is created) */
@@ -46,12 +47,15 @@ mylog_open(const char *tag)
 	}
 
 	/* Write opening message */
-	mylog_write("Started logging.");
+	mylog_write(START_MSG);
 
 	return 0;
 
 }
 
+/*
+ * Write to log
+ * */
 int
 mylog_write(const char *msg)
 {
@@ -60,20 +64,31 @@ mylog_write(const char *msg)
 	struct timeval 	tmp;
 	struct tm 	*ltmp;
 	size_t 	len;
-
+	
+	// Lock mutex for thread safety
+	pthread_mutex_lock(&mutex);
+	
+	// Create timestamp.
 	gettimeofday(&tmp, NULL);
 	ltmp = localtime(&(tmp.tv_sec));
 	strftime(tmpbuf, 29, "%b %d %H:%M:%S", ltmp);
-	snprintf(buf, MAXLEN, "%s.%ld\t%d:%s\t%s", tmpbuf, tmp.tv_usec, pid, caller, msg);
+	// Format message to <timestamp><tab><pid>:<caller_tag><tab><msg>
+	snprintf(buf, MAXLEN - 1, "%s.%.0f\t%d:%s\t%s", tmpbuf, tmp.tv_usec/1000.0, pid, caller, msg);
+	buf[MAXLEN - 1] = '\0';
 	len = strlen(buf);
+	// Write into log pipe
 	write(logfd, buf, len + 1);
+	pthread_mutex_unlock(&mutex);
 	return 0;
 }
 
+/*
+ * Close the log so the daemon may cleanup
+ * */
 int
 mylog_close(void)
 {
-	write(logfd, "C", 2);
+	write(logfd, CLOSE_MSG, 2);
 	close(logfd);
 	return 0;
 }

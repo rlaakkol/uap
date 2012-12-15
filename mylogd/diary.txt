@@ -1,0 +1,22 @@
+*****
+* Learning diary
+*****
+author: Riku Lääkkölä, 69896S
+
+This assignment taught me a lot about IPC via named pipes and a bit about
+threads.
+
+The part concerning threads was actually surprisingly painless and nice! This
+may have been because this particular use did not require complex race
+condtions or even joining. The only required synchronization manoeuvre was
+setting up one mutex and locking it before writing to a file and unlocking
+afterwards.
+
+This didn't stop me from scratching my head a bit after valgrind announced
+that pthread_create() is leaking memory. I had succesfully missed the fact
+that if the thread is not joined, it has to be detached for the resources to
+be freed. This was luckily again very simple, and now my overall view of
+threads is very positive! Maye this will change if I have to pass more complex
+arguments to threads at some point...
+
+The pipe and IPC part was a whole different story, though. 
