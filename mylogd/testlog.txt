@@ -1,0 +1,1 @@
+Dec 15 15:19:42.407591	10509:tester	Started logging.

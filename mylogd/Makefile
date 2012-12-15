@@ -1,16 +1,29 @@
 CC = gcc 
 CFLAGS = -Wall -Wextra -pedantic
-SOURCES = src/
-LIBS = src/
-OBJS = $(SOURCES:.c=.o)
-EXE = 
+DSOURCES = src/mylogd.c src/mylogd_logger.c
+TSOURCES = tester.c
+LSOURCES = src/mylog.c
+LHEADERS = src/mylog.h
+DOBJS = $(DSOURCES:.c=.o)
+TOBJS = $(TSOURCES:.c=.o)
+LOBJS = $(LSOURCES:.c=.o)
+OBJS = $(DOBJS) $(TOBJS) $(LOBJS)
+LIB = lib/mylog.a
+DAEMON = daemon/mylogd
+TESTER = tester
 
-all: $(EXE) clean
+all: $(DAEMON) $(LIB) $(TESTER) clean
 
-$(EXE): $(OBJS)
-	$(CC) $(OBJS) -o $@
+$(DAEMON): $(DOBJS)
+	$(CC) -pthread $(DOBJS) -o $@
 
-$(OBJS): $(LIBS)
+$(LIB): $(LOBJS)
+	ar rvs $(LIB) $(LOBJS)
+
+$(TESTER): $(LIB) $(TOBJS)
+
+
+$(LOBJS): $(LHEADERS)
 
 clean:
 	rm -f $(OBJS)

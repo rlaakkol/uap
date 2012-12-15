@@ -1,3 +1,15 @@
+#include <sys/time.h>
+#include <time.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+
+#include "mylog.h"
 
 #define FIFOFMT "/tmp/mylog.%d"
 #define FIFO_WRITE "/tmp/mylog.main"
@@ -7,21 +19,14 @@ int logfd;
 char caller[30];
 int pid;
 
-char
-*logfmt(struct timeval *tstamp, char *msg)
-{
-	char buf[
-
-}
 
 int
-mylog_open(char *tag)
+mylog_open(const char *tag)
 {
-	int 	pid;
 	char 	omsg[30], path[30];
 	size_t 	len;
 
-	caller = tag;
+	strcpy(caller, tag);
 	pid = getpid();
 	/* Open pipes */
 	daemonfd_w = open(FIFO_WRITE, O_WRONLY);
@@ -29,7 +34,10 @@ mylog_open(char *tag)
 	/* Write to mylogd main process pipe */
 	sprintf(omsg, "%d", pid);
 	len = strlen(omsg);
-	write(mainfd_w, omsg, len + 1);
+	printf("Sending open message: %s\n", omsg);
+	len = write(daemonfd_w, omsg, len + 1);
+	printf("Wrote %d bytes\n", (int) len);
+
 	
 	/* Open pid-specific pipe (once it is created) */
 	sprintf(path, FIFOFMT, pid);
@@ -54,8 +62,8 @@ mylog_write(const char *msg)
 	size_t 	len;
 
 	gettimeofday(&tmp, NULL);
-	ltmp = localtime(tmp.tv_sec);
-	strftime(tmpbuf, 29, "%b %d %T", ltmp);
+	ltmp = localtime(&(tmp.tv_sec));
+	strftime(tmpbuf, 29, "%b %d %H:%M:%S", ltmp);
 	snprintf(buf, MAXLEN, "%s.%ld\t%d:%s\t%s", tmpbuf, tmp.tv_usec, pid, caller, msg);
 	len = strlen(buf);
 	write(logfd, buf, len + 1);
@@ -66,6 +74,7 @@ int
 mylog_close(void)
 {
 	write(logfd, "C", 2);
+	close(logfd);
 	return 0;
 }
 
